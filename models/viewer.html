@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>3D Building Walkthrough</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #dcdcdc;
+      }
+      #instructions {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-family: sans-serif;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 20px 30px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="instructions">
+      🕹 Click to Start Walkthrough<br />
+      Use W, A, S, D to move<br />
+      Move mouse to look around
+    </div>
+
+    <script type="module">
+      import * as THREE from "https://esm.sh/three@0.157.0";
+      import { PointerLockControls } from "https://esm.sh/three@0.157.0/examples/jsm/controls/PointerLockControls.js";
+      import { GLTFLoader } from "https://esm.sh/three@0.157.0/examples/jsm/loaders/GLTFLoader.js";
+
+      // Basic setup
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xbfd1e5);
+
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      // Lights settings
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+      hemiLight.position.set(0, 200, 0);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(10, 10, 10);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+
+      // to acknowledge the ground
+      const groundGeo = new THREE.PlaneGeometry(200, 200);
+      const groundMat = new THREE.MeshPhongMaterial({ color: 0x999999 });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Controls
+      const controls = new PointerLockControls(camera, document.body);
+      const instructions = document.getElementById("instructions");
+
+      instructions.addEventListener("click", () => {
+        controls.lock();
+      });
+
+      controls.addEventListener("lock", () => {
+        instructions.style.display = "none";
+      });
+
+      controls.addEventListener("unlock", () => {
+        instructions.style.display = "";
+      });
+
+      // Movement setup
+      const velocity = new THREE.Vector3();
+      const direction = new THREE.Vector3();
+      const move = { forward: false, backward: false, left: false, right: false };
+      const speed = 5.0;
+
+      const onKeyDown = (e) => {
+        switch (e.code) {
+          case "ArrowUp":
+          case "KeyW":
+            move.forward = true;
+            break;
+          case "ArrowLeft":
+          case "KeyA":
+            move.left = true;
+            break;
+          case "ArrowDown":
+          case "KeyS":
+            move.backward = true;
+            break;
+          case "ArrowRight":
+          case "KeyD":
+            move.right = true;
+            break;
+        }
+      };
+
+      const onKeyUp = (e) => {
+        switch (e.code) {
+          case "ArrowUp":
+          case "KeyW":
+            move.forward = false;
+            break;
+          case "ArrowLeft":
+          case "KeyA":
+            move.left = false;
+            break;
+          case "ArrowDown":
+          case "KeyS":
+            move.backward = false;
+            break;
+          case "ArrowRight":
+          case "KeyD":
+            move.right = false;
+            break;
+        }
+      };
+
+      document.addEventListener("keydown", onKeyDown);
+      document.addEventListener("keyup", onKeyUp);
+
+      // Load your GLB model
+      const loader = new GLTFLoader();
+      loader.load(
+        "./hostelA.glb", // Change this path
+        (gltf) => {
+          const model = gltf.scene;
+
+          // Center and scale model
+          const box = new THREE.Box3().setFromObject(model);
+          const center = box.getCenter(new THREE.Vector3());
+          const size = box.getSize(new THREE.Vector3());
+          const scaleFactor = 5 / Math.max(size.x, size.y, size.z);
+
+          model.scale.setScalar(scaleFactor);
+          model.position.sub(center.multiplyScalar(scaleFactor));
+          //model.rotation.y = Math.PI / 2
+          model.position.y += 1.0;
+
+          scene.add(model);
+          console.log("Model loaded successfully!");
+        },
+        undefined,
+        (err) => console.error("Error loading model:", err)
+      );
+
+      // Set initial camera position
+      camera.position.set(0, 1.0, 5);
+
+      // Animation loop
+      const clock = new THREE.Clock();
+
+      function animate() {
+        const delta = clock.getDelta();
+        const actualSpeed = speed * delta;
+
+        velocity.x -= velocity.x * 10.0 * delta;
+        velocity.z -= velocity.z * 10.0 * delta;
+
+        direction.z = Number(move.forward) - Number(move.backward);
+        direction.x = Number(move.right) - Number(move.left);
+        direction.normalize();
+
+        if (move.forward || move.backward)
+          velocity.z -= direction.z * actualSpeed;
+        if (move.left || move.right)
+          velocity.x -= direction.x * actualSpeed;
+
+        controls.moveRight(-velocity.x * delta);
+        controls.moveForward(-velocity.z * delta);
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+
+      // to resize the rendered scene
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    </script>
+  </body>
+</html>
+
