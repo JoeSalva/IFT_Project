@@ -1,0 +1,18 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node
+node_modules/
+dist/
+build/
+
+# Logs and caches
+*.log
+.cache/
+*.tmp
+
+# Vercel local folder
+.vercel/
