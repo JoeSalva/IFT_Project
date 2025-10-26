@@ -8,7 +8,9 @@
       margin: 0;
       overflow: hidden;
       background-color: #dcdcdc;
+      touch-action: none;
     }
+
     #instructions {
       position: absolute;
       top: 50%;
@@ -20,13 +22,16 @@
       padding: 20px 30px;
       border-radius: 8px;
       cursor: pointer;
+      z-index: 100;
     }
+
     #buttons {
       position: absolute;
       top: 10px;
       left: 10px;
       z-index: 100;
     }
+
     button {
       margin: 4px;
       padding: 6px 12px;
@@ -36,8 +41,18 @@
       border-radius: 6px;
       cursor: pointer;
     }
+
     button:hover {
       background: #6b6b6b;
+    }
+
+    #joystick-zone {
+      position: absolute;
+      bottom: 50px;
+      left: 50px;
+      width: 120px;
+      height: 120px;
+      z-index: 200;
     }
   </style>
 </head>
@@ -56,203 +71,233 @@
     <button onclick="loadModel('old_library')">Old Library</button>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.9.0/nipplejs.min.js"></script>
+
   <script type="module">
-    import * as THREE from "https://esm.sh/three@0.157.0";
-    import { PointerLockControls } from "https://esm.sh/three@0.157.0/examples/jsm/controls/PointerLockControls.js";
-    import { GLTFLoader } from "https://esm.sh/three@0.157.0/examples/jsm/loaders/GLTFLoader.js";
+  import * as THREE from "https://esm.sh/three@0.157.0";
+  import { PointerLockControls } from "https://esm.sh/three@0.157.0/examples/jsm/controls/PointerLockControls.js";
+  import { GLTFLoader } from "https://esm.sh/three@0.157.0/examples/jsm/loaders/GLTFLoader.js";
 
-    let scene, camera, renderer, controls, currentModel = null;
-    const groundLevel = -5;
-    const playerHeight = 1.3;
+  let scene, camera, renderer, controls, currentModel = null;
+  const groundLevel = -5;
+  const playerHeight = 1.3;
 
-   // Dictionary to store model data
-    const modelConfigs = {
-      hostelA: {
-        path: "models/hostelA.glb",
-        rotationY: Math.PI / 4,
-        cameraOffset: new THREE.Vector3(-9, 1.0, 4),
-      },
-      hostelC: {
-        path: "models/hostelC.glb",
-        rotationY: Math.PI / 2,
-        cameraOffset: new THREE.Vector3(-1, 1.0, 8),
-      },
-      ICT: {
-        path: "models/ICT.glb",
-        rotationY: Math.PI,
-        cameraOffset: new THREE.Vector3(0, 1.5, 5),
-      },
-      new_library: {
-        path: "models/new_library.glb",
-        rotationY: 0,
-        cameraOffset: new THREE.Vector3(0, 1.0, 5),
-        manualCameraFix: true,
-      },
-      old_library: {
-        path: "models/old_library.glb",
-        rotationY: 0,
-        cameraOffset: new THREE.Vector3(5, 1.0, 0),
-        yOffset: 1,
-      },
-    };
+  const modelConfigs = {
+    hostelA: { path: "models/hostelA.glb", rotationY: Math.PI / 4, cameraOffset: new THREE.Vector3(-9, 1.0, 4) },
+    hostelC: { path: "models/hostelC.glb", rotationY: Math.PI / 2, cameraOffset: new THREE.Vector3(-1, 1.0, 8) },
+    ICT: { path: "models/ICT.glb", rotationY: Math.PI, cameraOffset: new THREE.Vector3(0, 1.5, 5) },
+    new_library: { path: "models/new_library.glb", rotationY: 0, cameraOffset: new THREE.Vector3(0, 1.0, 5), manualCameraFix: true },
+    old_library: { path: "models/old_library.glb", rotationY: 0, cameraOffset: new THREE.Vector3(5, 1.0, 0), yOffset: 1 },
+  };
 
-    const keys = { w: false, a: false, s: false, d: false };
+  const keys = { w: false, a: false, s: false, d: false };
+  let joystick = null;
+  const joystickData = { active: false, angle: 0, distance: 0 };
 
-    document.addEventListener("keydown", (e) => {
-      const key = e.key.toLowerCase();
-      if (keys.hasOwnProperty(key)) keys[key] = true;
-    });
-    document.addEventListener("keyup", (e) => {
-      const key = e.key.toLowerCase();
-      if (keys.hasOwnProperty(key)) keys[key] = false;
-    });
+  document.addEventListener("keydown", e => {
+    const key = e.key.toLowerCase();
+    if (keys.hasOwnProperty(key)) keys[key] = true;
+  });
 
-    init();
-    animate();
+  document.addEventListener("keyup", e => {
+    const key = e.key.toLowerCase();
+    if (keys.hasOwnProperty(key)) keys[key] = false;
+  });
 
-    function init() {
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0xbfd1e5);
+  init();
+  animate();
 
-      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xbfd1e5);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.shadowMap.enabled = true;
-      document.body.appendChild(renderer.domElement);
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-      // Lights Setup
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
-      hemiLight.position.set(0, 200, 0);
-      scene.add(hemiLight);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
 
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(10, 10, 10);
-      dirLight.castShadow = true;
-      scene.add(dirLight);
+    // Lights
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+    hemiLight.position.set(0, 200, 0);
+    scene.add(hemiLight);
 
-      // Ground Setup, helps model acknowledge the ground
-      const groundGeo = new THREE.PlaneGeometry(400, 400);
-      const groundMat = new THREE.MeshStandardMaterial({ color: 0x999999 });
-      const ground = new THREE.Mesh(groundGeo, groundMat);
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.y = groundLevel;
-      ground.receiveShadow = true;
-      scene.add(ground);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(10, 10, 10);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
 
-      // Pointer Lock Controls
-      controls = new PointerLockControls(camera, document.body);
-      const instructions = document.getElementById("instructions");
-      instructions.addEventListener("click", () => controls.lock());
-      controls.addEventListener("lock", () => (instructions.style.display = "none"));
-      controls.addEventListener("unlock", () => (instructions.style.display = ""));
-      controls.getObject().position.set(0, playerHeight, 5);
-      scene.add(controls.getObject());
+    // Ground
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400),
+      new THREE.MeshStandardMaterial({ color: 0x999999 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = groundLevel;
+    ground.receiveShadow = true;
+    scene.add(ground);
 
-      window.addEventListener("resize", onWindowResize);
+    // Controls
+    controls = new PointerLockControls(camera, document.body);
+    const instructions = document.getElementById("instructions");
+    instructions.addEventListener("click", () => controls.lock());
+    controls.addEventListener("lock", () => (instructions.style.display = "none"));
+    controls.addEventListener("unlock", () => (instructions.style.display = ""));
+    controls.getObject().position.set(0, playerHeight, 5);
+    scene.add(controls.getObject());
 
-      
-      const params = new URLSearchParams(window.location.search);
-      const modelName = params.get("model");
-      if (modelName && modelConfigs[modelName]) {
-        loadModel(modelName);
+    window.addEventListener("resize", onWindowResize);
+
+    // For Mobile Pointer Lock Toggle
+    function unlockPointer() {
+      if (controls.isLocked) {
+        controls.unlock();
+        joystickZone.style.display = 'none'; 
+      } else {
+        controls.lock();
+        joystickZone.style.display = 'block'; 
       }
     }
 
-    function loadModel(name) {
-      const config = modelConfigs[name];
-      if (!config) return console.error(`No config for ${name}`);
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-      const loader = new GLTFLoader();
-      if (currentModel) scene.remove(currentModel);
-
-      loader.load(
-        config.path,
-        (gltf) => {
-          const model = gltf.scene;
-          model.rotation.y = config.rotationY || 0;
-
-          // Center model
-          const box = new THREE.Box3().setFromObject(model);
-          const center = box.getCenter(new THREE.Vector3());
-          model.position.sub(center);
-          model.position.y = -1;
-
-
-          if (name === "new_library") {
-            model.scale.set(3, 3, 3);
-            model.position.y = -1;
-          }
-
-          scene.add(model);
-          currentModel = model;
-
- 
-          controls.getObject().position.copy(config.cameraOffset);
-
-          if (name === "new_library") {
-            controls.getObject().position.y = 0.5;
-          } else {
-            controls.getObject().position.y = playerHeight;
-          }
-
-          const target = new THREE.Vector3();
-          model.getWorldPosition(target);
-          if (name === "new_library") target.y += 1.5;
-          else target.y += 2;
-
-          if (config.yOffset !== undefined) {
-            model.position.y += config.yOffset;
-          }
-
-          controls.getObject().lookAt(target);
-        },
-        undefined,
-        (err) => console.error(`Error loading ${config.path}:`, err)
-      );
+    if (isMobile) {
+      document.addEventListener('touchstart', () => {
+        unlockPointer();
+      });
     }
 
-    // To control user's movement
-    function movePlayer() {
-      const moveSpeed = 0.05;
-      const frontVector = new THREE.Vector3();
-      const sideVector = new THREE.Vector3();
-      const direction = new THREE.Vector3();
 
-      camera.getWorldDirection(frontVector);
-      frontVector.y = 0;
-      frontVector.normalize();
+    // Load model from URL or button
+    const params = new URLSearchParams(window.location.search);
+    const modelName = params.get("model");
+    if (modelName && modelConfigs[modelName]) loadModel(modelName);
 
-      sideVector.crossVectors(camera.up, frontVector).normalize();
+    // Mobile joystick
+    if (/Mobi|Android/i.test(navigator.userAgent)) setupJoystick();
+  }
 
-      direction.set(0, 0, 0);
-      if (keys.w) direction.add(frontVector);
-      if (keys.s) direction.sub(frontVector);
-      if (keys.a) direction.add(sideVector);
-      if (keys.d) direction.sub(sideVector);
+  function setupJoystick() {
+    const zone = document.createElement("div");
+    zone.id = "joystick-zone";
+    document.body.appendChild(zone);
 
+    joystick = nipplejs.create({
+      zone,
+      mode: "static",
+      position: { left: "70px", bottom: "70px" },
+      color: "white",
+    });
+
+    joystick.on("move", (evt, data) => {
+      joystickData.active = true;
+      joystickData.angle = data.angle ? data.angle.radian : 0;
+      joystickData.distance = data.distance || 0;
+      joystickData.vx = data.vector ? data.vector.x : 0;
+      joystickData.vy = data.vector ? data.vector.y : 0;
+    });
+
+    joystick.on("end", () => {
+      joystickData.active = false;
+      joystickData.vx = 0;
+      joystickData.vy = 0;
+      joystickData.distance = 0;
+    });
+  }
+
+
+  function loadModel(name) {
+    const config = modelConfigs[name];
+    if (!config) return console.error(`No config for ${name}`);
+
+    const loader = new GLTFLoader();
+    if (currentModel) scene.remove(currentModel);
+
+    loader.load(
+      config.path,
+      (gltf) => {
+        const model = gltf.scene;
+        model.rotation.y = config.rotationY || 0;
+
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.sub(center);
+        model.position.y = -1;
+
+        if (name === "new_library") {
+          model.scale.set(3, 3, 3);
+          model.position.y = -1;
+        }
+
+        if (config.yOffset !== undefined) model.position.y += config.yOffset;
+
+        scene.add(model);
+        currentModel = model;
+
+        controls.getObject().position.copy(config.cameraOffset);
+        controls.getObject().position.y = config.cameraOffset.y || playerHeight;
+
+        const target = new THREE.Vector3();
+        model.getWorldPosition(target);
+        target.y += 1.5;
+        controls.getObject().lookAt(target);
+      },
+      undefined,
+      (err) => console.error(`Error loading ${config.path}:`, err)
+    );
+  }
+
+
+  function movePlayer() {
+    const moveSpeed = 0.1;
+    const frontVector = new THREE.Vector3();
+    const sideVector = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+
+    // Get camera's forward direction (ignore vertical tilt)
+    camera.getWorldDirection(frontVector);
+    frontVector.y = 0;
+    frontVector.normalize();
+
+    // Right vector = forward x up
+    sideVector.crossVectors(frontVector, camera.up).normalize();
+
+    // Keyboard controls
+    if (keys.w) direction.add(frontVector);
+    if (keys.s) direction.sub(frontVector);
+    if (keys.a) direction.sub(sideVector);
+    if (keys.d) direction.add(sideVector);
+
+    // Mobile joystick controls
+    if (joystickData.active) {
+      const vx = joystickData.vx || 0; // horizontal (right)
+      const vy = joystickData.vy || 0; // vertical (forward)
+
+      const forwardMove = frontVector.clone().multiplyScalar(vy * joystickData.distance * 0.5);
+      const rightMove = sideVector.clone().multiplyScalar(vx * joystickData.distance * 0.5);
+
+      direction.add(forwardMove);
+      direction.add(rightMove);
+    }
+
+    if (direction.lengthSq() > 0) {
       direction.normalize();
       controls.getObject().position.addScaledVector(direction, moveSpeed);
-
-      if (controls.getObject().position.y < playerHeight) {
-        controls.getObject().position.y = playerHeight;
-      }
     }
+  }
 
-    // For Animation
-    function animate() {
-      requestAnimationFrame(animate);
-      movePlayer();
-      renderer.render(scene, camera);
-    }
+  function animate() {
+    requestAnimationFrame(animate);
+    movePlayer();
+    renderer.render(scene, camera);
+  }
 
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
 
-    window.loadModel = loadModel;
-  </script>
-</body>
-</html>
+  window.loadModel = loadModel;
+</script>
