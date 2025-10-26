@@ -190,12 +190,21 @@
   }
 
   // ✅ Full-screen swipe look
+ // ✅ Improved full-screen swipe look (mobile)
   function setupFullScreenLook() {
+    let touchStartX = 0, touchStartY = 0;
+    let yaw = 0;   // horizontal rotation (left/right)
+    let pitch = 0; // vertical rotation (up/down)
+
+    // Start by matching existing camera rotation
+    yaw = controls.getObject().rotation.y;
+    pitch = camera.rotation.x;
+
     renderer.domElement.addEventListener("touchstart", (e) => {
       if (e.touches.length === 1) {
         isTouching = true;
-        lastTouchX = e.touches[0].pageX;
-        lastTouchY = e.touches[0].pageY;
+        touchStartX = e.touches[0].pageX;
+        touchStartY = e.touches[0].pageY;
       }
     });
 
@@ -203,21 +212,32 @@
       if (!isTouching) return;
 
       const touch = e.touches[0];
-      const dx = touch.pageX - lastTouchX;
-      const dy = touch.pageY - lastTouchY;
-      lastTouchX = touch.pageX;
-      lastTouchY = touch.pageY;
+      const dx = touch.pageX - touchStartX;
+      const dy = touch.pageY - touchStartY;
+      touchStartX = touch.pageX;
+      touchStartY = touch.pageY;
 
-      const rotationSpeed = 0.002;
-      controls.getObject().rotation.y -= dx * rotationSpeed;
-      camera.rotation.x -= dy * rotationSpeed;
-      camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+      const lookSpeed = 0.003; // sensitivity
+
+      // Update rotation values
+      yaw -= dx * lookSpeed;
+      pitch -= dy * lookSpeed;
+
+      // ✅ Clamp pitch to prevent flipping
+      const maxPitch = Math.PI / 2 - 0.05;
+      const minPitch = -Math.PI / 2 + 0.05;
+      pitch = Math.max(minPitch, Math.min(maxPitch, pitch));
+
+      // Apply rotation
+      controls.getObject().rotation.y = yaw;
+      camera.rotation.x = pitch;
     });
 
     renderer.domElement.addEventListener("touchend", () => {
       isTouching = false;
     });
   }
+
 
   function loadModel(name) {
     const config = modelConfigs[name];
