@@ -190,53 +190,36 @@
   }
 
   // ✅ Full-screen swipe look
- // ✅ Improved full-screen swipe look (mobile)
+  // ✅ Improved full-screen swipe look (mobile)
   function setupFullScreenLook() {
-    let touchStartX = 0, touchStartY = 0;
-    let yaw = 0;   // horizontal rotation (left/right)
-    let pitch = 0; // vertical rotation (up/down)
+  let touchStartX = 0;
+  let yaw = controls.getObject().rotation.y;
 
-    // Start by matching existing camera rotation
-    yaw = controls.getObject().rotation.y;
-    pitch = camera.rotation.x;
+  renderer.domElement.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      isTouching = true;
+      touchStartX = e.touches[0].pageX;
+    }
+  });
 
-    renderer.domElement.addEventListener("touchstart", (e) => {
-      if (e.touches.length === 1) {
-        isTouching = true;
-        touchStartX = e.touches[0].pageX;
-        touchStartY = e.touches[0].pageY;
-      }
-    });
+  renderer.domElement.addEventListener("touchmove", (e) => {
+    if (!isTouching) return;
 
-    renderer.domElement.addEventListener("touchmove", (e) => {
-      if (!isTouching) return;
+    const touch = e.touches[0];
+    const dx = touch.pageX - touchStartX;
+    touchStartX = touch.pageX;
 
-      const touch = e.touches[0];
-      const dx = touch.pageX - touchStartX;
-      const dy = touch.pageY - touchStartY;
-      touchStartX = touch.pageX;
-      touchStartY = touch.pageY;
+    const lookSpeed = 0.003; // sensitivity
+    yaw -= dx * lookSpeed;
 
-      const lookSpeed = 0.003; // sensitivity
+    // ✅ Only update horizontal rotation (yaw)
+    controls.getObject().rotation.y = yaw;
+  });
 
-      // Update rotation values
-      yaw -= dx * lookSpeed;
-      pitch -= dy * lookSpeed;
-
-      // ✅ Clamp pitch to prevent flipping
-      const maxPitch = Math.PI / 2 - 0.05;
-      const minPitch = -Math.PI / 2 + 0.05;
-      pitch = Math.max(minPitch, Math.min(maxPitch, pitch));
-
-      // Apply rotation
-      controls.getObject().rotation.y = yaw;
-      camera.rotation.x = pitch;
-    });
-
-    renderer.domElement.addEventListener("touchend", () => {
-      isTouching = false;
-    });
-  }
+  renderer.domElement.addEventListener("touchend", () => {
+    isTouching = false;
+  });
+}
 
 
   function loadModel(name) {
