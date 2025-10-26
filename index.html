@@ -92,7 +92,7 @@
     hostelA: { path: "models/hostelA.glb", rotationY: Math.PI / 4, cameraOffset: new THREE.Vector3(-9, 1.0, 4) },
     hostelC: { path: "models/hostelC.glb", rotationY: Math.PI / 2, cameraOffset: new THREE.Vector3(-1, 1.0, 8) },
     ICT: { path: "models/ICT.glb", rotationY: Math.PI, cameraOffset: new THREE.Vector3(0, 1.5, 5) },
-    new_library: { path: "models/new_library.glb", rotationY: 0, cameraOffset: new THREE.Vector3(0, 1.0, 5) },
+    new_library: { path: "models/new_library.glb", rotationY: 0, cameraOffset: new THREE.Vector3(0, 1.0, 5), manualCameraFix: true},
     old_library: { path: "models/old_library.glb", rotationY: 0, cameraOffset: new THREE.Vector3(5, 1.0, 0), yOffset: 1 },
   };
 
@@ -235,28 +235,40 @@
         const model = gltf.scene;
         model.rotation.y = config.rotationY || 0;
 
+        // Center the model
         const box = new THREE.Box3().setFromObject(model);
         const center = box.getCenter(new THREE.Vector3());
         model.position.sub(center);
         model.position.y = -1;
 
-        if (config.yOffset !== undefined) model.position.y += config.yOffset;
+        // ✅ Special settings for new_library
+        if (name === "new_library") {
+          model.scale.set(3, 3, 3);              // enlarge model to match world scale
+          model.position.y = -1;               // lower it slightly to align with ground
+          controls.getObject().position.set(0, 1.3, 8); // custom camera start position
+          controls.getObject().lookAt(model.position);  // focus on the building entrance
+        } else {
+          // default behavior for all other models
+          if (config.yOffset !== undefined) model.position.y += config.yOffset;
 
+          controls.getObject().position.copy(config.cameraOffset);
+          controls.getObject().position.y = config.cameraOffset.y || playerHeight;
+
+          const target = new THREE.Vector3();
+          model.getWorldPosition(target);
+          target.y += 1.5;
+          controls.getObject().lookAt(target);
+        }
+
+        // Add model to scene
         scene.add(model);
         currentModel = model;
-
-        controls.getObject().position.copy(config.cameraOffset);
-        controls.getObject().position.y = config.cameraOffset.y || playerHeight;
-
-        const target = new THREE.Vector3();
-        model.getWorldPosition(target);
-        target.y += 1.5;
-        controls.getObject().lookAt(target);
       },
       undefined,
       (err) => console.error(`Error loading ${config.path}:`, err)
     );
   }
+
 
   function movePlayer() {
     const moveSpeed = 0.1;
